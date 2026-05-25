@@ -26,7 +26,7 @@
                 <h4>Today's Overview</h4>
                 <div class="ov-line">Active Clients <span>28</span></div>
                 <div class="ov-line">Sessions Today <span>5</span></div>
-                <div class="ov-line">Unread Messages <span class="red-text">3</span></div>
+                <div class="ov-line">Unread Messages <span class="red-text" id="unread-messages-count">0</span></div>
             </div>
         </aside>
 
@@ -134,47 +134,23 @@
                     <div class="messages-layout">
                         <div class="inbox-sidebar">
                             <div class="search-input"><i class="fa-solid fa-search"></i> <input type="text" placeholder="Search conversations..."></div>
-                            <div class="inbox-list">
-                                <div class="inbox-item active">
-                                    <div class="c-avatar blue sm">29</div>
-                                    <div class="inbox-details">
-                                        <div class="flex-bw"><strong>User#2931</strong> <span class="time">2 hours ago</span></div>
-                                        <p>Thank you for the session today. The breat...</p>
-                                    </div>
-                                    <div class="unread-badge">2</div>
-                                </div>
-                                <div class="inbox-item">
-                                    <div class="c-avatar blue sm">12</div>
-                                    <div class="inbox-details">
-                                        <div class="flex-bw"><strong>User#1293</strong> <span class="time">5 hours ago</span></div>
-                                        <p>I had another nightmare last night. Can we ...</p>
-                                    </div>
-                                    <div class="unread-badge">1</div>
-                                </div>
+                            <div class="inbox-list" id="inbox-list">
+                                <p class="inbox-empty" id="inbox-empty">No client messages yet.</p>
                             </div>
                         </div>
                         <div class="chat-area">
-                            <div class="chat-header">
-                                <div class="flex-align"><div class="c-avatar blue sm">29</div><div><strong>User#2931</strong><br><span class="muted text-sm">Anonymous Client</span></div></div>
+                            <div class="chat-header" id="chat-header">
+                                <div class="flex-align">
+                                    <div class="c-avatar blue sm" id="chat-avatar">--</div>
+                                    <div>
+                                        <strong id="chat-client-name">Select a conversation</strong><br>
+                                        <span class="muted text-sm" id="chat-client-meta">Client messages appear here</span>
+                                    </div>
+                                </div>
                                 <i class="fa-solid fa-ellipsis-vertical"></i>
                             </div>
-                            <div class="chat-history">
-                                <div class="bubble incoming">
-                                    <p>Hi Dr. Johnson, I wanted to follow up on today's session.</p>
-                                    <span class="time">3 hours ago</span>
-                                </div>
-                                <div class="bubble outgoing">
-                                    <p>Hello! Of course, I'm here. How are you feeling after our session?</p>
-                                    <span class="time">2.5 hours ago</span>
-                                </div>
-                                <div class="bubble incoming">
-                                    <p>Much better actually. The breathing exercises really helped when I started feeling anxious at work.</p>
-                                    <span class="time">2 hours ago</span>
-                                </div>
-                                <div class="bubble outgoing">
-                                    <p>That's wonderful to hear! Remember to practice them daily, even when you're not feeling anxious. It helps build the habit.</p>
-                                    <span class="time">2 hours ago</span>
-                                </div>
+                            <div class="chat-history" id="chat-history">
+                                <p class="inbox-empty" id="chat-empty">Select a client from the left to read their messages.</p>
                             </div>
                             <div class="chat-footer">
                                 <div class="privacy-banner"><strong>Privacy Reminder:</strong> All messages are encrypted and HIPAA-compliant. Do not share identifiable information.</div>

@@ -122,6 +122,12 @@ body { background: var(--bg-main); color: var(--text-dark); }
 
 /* ---------------- MESSAGES (INBOX) VIEW ---------------- */
 .messages-layout { display: flex; height: 600px; background: white; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+
+.inbox-empty {
+    color: #6b7280;
+    padding: 1.25rem;
+    font-size: 0.9rem;
+}
 .inbox-sidebar { width: 320px; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
 .inbox-sidebar .search-input { margin: 15px; border-radius: 20px; background: #f1f5f9; border: none; }
 .inbox-list { flex: 1; overflow-y: auto; }

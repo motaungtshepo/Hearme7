@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('./database/models/users');
 const Post = require('./database/models/Post');
+const Message = require('./database/models/Message');
 const app = express();
 
 // Middleware
@@ -33,6 +34,54 @@ async function prepareDatabase() {
     } catch (err) {
         console.warn('Could not sync user indexes. Run npm run fix-db if signup fails:', err.message);
     }
+
+    const therapistsMissingProfile = await User.find({
+        role: 'therapist',
+        $or: [{ displayName: { $exists: false } }, { displayName: '' }, { displayName: null }]
+    });
+
+    for (const therapist of therapistsMissingProfile) {
+        therapist.displayName = formatDisplayName(therapist.identifier);
+        therapist.bio = therapist.bio || 'Licensed professional ready to support clients on HearMe.';
+        if (!therapist.specialties?.length) {
+            therapist.specialties = ['Anxiety', 'Depression', 'General Support'];
+        }
+        await therapist.save();
+    }
+}
+
+function formatDisplayName(identifier) {
+    const base = identifier.includes('@')
+        ? identifier.split('@')[0]
+        : identifier;
+
+    return base
+        .replace(/[._-]/g, ' ')
+        .split(' ')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+}
+
+function toTherapistCard(therapist) {
+    const name = therapist.displayName || formatDisplayName(therapist.identifier);
+    const specialties = therapist.specialties?.length
+        ? therapist.specialties
+        : ['General Support'];
+
+    return {
+        id: therapist._id,
+        name,
+        identifier: therapist.identifier,
+        bio: therapist.bio || 'Licensed professional available on HearMe.',
+        specialties,
+        initials: name
+            .split(' ')
+            .map((part) => part[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase()
+    };
 }
 
 function sendDbError(res, error, context) {
@@ -72,12 +121,21 @@ app.post('/api/auth/signup', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        const newUser = new User({
+        const trimmedIdentifier = String(identifier).trim();
+        const userData = {
             role,
             isAnonymous: Boolean(isAnonymous),
-            identifier: String(identifier).trim(),
+            identifier: trimmedIdentifier,
             password: hashedPassword
-        });
+        };
+
+        if (role === 'therapist') {
+            userData.displayName = formatDisplayName(trimmedIdentifier);
+            userData.bio = 'Licensed professional ready to support clients on HearMe.';
+            userData.specialties = ['Anxiety', 'Depression', 'General Support'];
+        }
+
+        const newUser = new User(userData);
 
         await newUser.save();
 
@@ -122,7 +180,12 @@ app.post('/api/auth/login', async (req, res) => {
         res.status(200).json({ 
             message: 'Logged in successfully',
             token,
-            user: { identifier: user.identifier, role: user.role }
+            user: {
+                id: user._id,
+                identifier: user.identifier,
+                role: user.role,
+                displayName: user.displayName || formatDisplayName(user.identifier)
+            }
         });
 
     } catch (error) {
@@ -178,6 +241,137 @@ const verifyToken = (req, res, next) => {
         res.status(400).json({ message: 'Invalid token.' });
     }
 };
+
+
+//  LIST REGISTERED THERAPISTS (Experts page)
+// ==========================================
+app.get('/api/therapists', async (req, res) => {
+    try {
+        const therapists = await User.find({ role: 'therapist' })
+            .select('displayName identifier bio specialties createdAt')
+            .sort({ createdAt: -1 });
+
+        res.status(200).json(therapists.map(toTherapistCard));
+    } catch (error) {
+        return sendDbError(res, error, 'fetch therapists');
+    }
+});
+
+
+//  SEND MESSAGE TO THERAPIST (User -> Therapist)
+// ==========================================
+app.post('/api/messages', verifyToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'user') {
+            return res.status(403).json({ message: 'Only users can send messages to therapists.' });
+        }
+
+        const { therapistId, content } = req.body;
+        if (!therapistId || !content?.trim()) {
+            return res.status(400).json({ message: 'Therapist and message content are required.' });
+        }
+
+        const therapist = await User.findOne({ _id: therapistId, role: 'therapist' });
+        if (!therapist) {
+            return res.status(404).json({ message: 'Therapist not found.' });
+        }
+
+        const sender = await User.findById(req.user.userId);
+        const message = new Message({
+            therapistId: therapist._id,
+            senderId: sender._id,
+            senderIdentifier: sender.identifier,
+            content: content.trim()
+        });
+
+        await message.save();
+
+        res.status(201).json({
+            message: 'Message sent successfully.',
+            data: message
+        });
+    } catch (error) {
+        return sendDbError(res, error, 'send message');
+    }
+});
+
+
+//  THERAPIST INBOX
+// ==========================================
+app.get('/api/messages/inbox', verifyToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'therapist') {
+            return res.status(403).json({ message: 'Only therapists can view this inbox.' });
+        }
+
+        const messages = await Message.find({ therapistId: req.user.userId })
+            .sort({ createdAt: -1 });
+
+        const conversationsMap = new Map();
+
+        messages.forEach((msg) => {
+            const key = msg.senderId.toString();
+            if (!conversationsMap.has(key)) {
+                conversationsMap.set(key, {
+                    senderId: msg.senderId,
+                    senderIdentifier: msg.senderIdentifier,
+                    unreadCount: 0,
+                    messages: []
+                });
+            }
+
+            const conversation = conversationsMap.get(key);
+            conversation.messages.push(msg);
+            if (!msg.read) {
+                conversation.unreadCount += 1;
+            }
+        });
+
+        const conversations = Array.from(conversationsMap.values()).map((conversation) => {
+            conversation.messages.sort(
+                (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+            );
+            conversation.lastMessage = conversation.messages[conversation.messages.length - 1];
+            return conversation;
+        });
+
+        conversations.sort(
+            (a, b) => new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt)
+        );
+
+        res.status(200).json({
+            unreadTotal: messages.filter((msg) => !msg.read).length,
+            conversations
+        });
+    } catch (error) {
+        return sendDbError(res, error, 'fetch inbox');
+    }
+});
+
+
+//  MARK MESSAGES AS READ (Therapist)
+// ==========================================
+app.patch('/api/messages/read', verifyToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'therapist') {
+            return res.status(403).json({ message: 'Only therapists can mark messages as read.' });
+        }
+
+        const { senderId } = req.body;
+        if (!senderId) {
+            return res.status(400).json({ message: 'senderId is required.' });
+        }
+
+        await Message.updateMany(
+            { therapistId: req.user.userId, senderId, read: false },
+            { $set: { read: true } }
+        );
+
+        res.status(200).json({ message: 'Messages marked as read.' });
+    } catch (error) {
+        return sendDbError(res, error, 'mark messages read');
+    }
+});
 
 
 //  GET ALL POSTS (For the Feed)

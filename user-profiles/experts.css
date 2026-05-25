@@ -383,6 +383,20 @@ body {
     margin-bottom: 1.25rem;
 }
 
+.experts-section-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.75rem;
+}
+
+.experts-status {
+    color: var(--text-muted);
+    padding: 1rem 0;
+}
+
 .expert-actions {
     display: flex;
     gap: 1rem;

@@ -20,6 +20,19 @@ const userSchema = new mongoose.Schema({
     password: {
         type: String,
         required: true
+    },
+    displayName: {
+        type: String,
+        trim: true
+    },
+    bio: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    specialties: {
+        type: [String],
+        default: []
     }
 }, { timestamps: true }); 
 
