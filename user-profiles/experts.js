@@ -6,12 +6,12 @@ let selectedTherapistId = null;
 lucide.createIcons();
 
 function getToken() {
-    return localStorage.getItem('token');
+    return authStorage.get('token');
 }
 
 function requireUserLogin() {
     const token = getToken();
-    const role = localStorage.getItem('userRole');
+    const role = authStorage.get('userRole');
 
     if (!token || role !== 'user') {
         alert('Please sign in as a User to contact therapists.');
@@ -228,7 +228,7 @@ function bindExpertActions() {
 
                 if (!response.ok) {
                     if (response.status === 401) {
-                        localStorage.clear();
+                        authStorage.clear();
                         alert(data.message || 'Session expired. Please sign in again.');
                         window.location.href = '../landing-page/login.html';
                         return;

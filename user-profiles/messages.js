@@ -21,8 +21,8 @@ function formatTime(dateString) {
 }
 
 function getToken() {
-    const token = localStorage.getItem('token');
-    const role = localStorage.getItem('userRole');
+    const token = authStorage.get('token');
+    const role = authStorage.get('userRole');
 
     if (!token || role !== 'user') {
         alert('Please sign in as a User to view messages.');
@@ -43,9 +43,7 @@ async function parseApiResponse(response) {
 
 function handleAuthError(status, message) {
     if (status === 401 || message?.toLowerCase().includes('token')) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('userIdentifier');
+        authStorage.clear();
         alert(message || 'Session expired. Please sign in again.');
         window.location.href = '../landing-page/login.html';
         return true;

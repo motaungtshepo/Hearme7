@@ -206,7 +206,7 @@ async function markConversationRead(clientId) {
     const conversation = getConversation(clientId);
     if (!conversation || conversation.unreadCount === 0) return;
 
-    const token = localStorage.getItem('token');
+    const token = authStorage.get('token');
     if (!token) return;
 
     markingRead = true;
@@ -245,11 +245,18 @@ async function markConversationRead(clientId) {
 }
 
 async function sendTherapistReply() {
-    const token = localStorage.getItem('token');
+    const token = authStorage.get('token');
+    const userRole = authStorage.get('userRole');
     const replyInput = document.getElementById('therapist-reply-input');
     const sendBtn = document.getElementById('therapist-reply-send');
 
     if (!token || !replyInput) return;
+
+    if (userRole !== 'therapist') {
+        alert('You are signed in as a user. Please sign in again with the Therapist role to reply here.');
+        window.location.href = '../landing-page/login.html';
+        return;
+    }
 
     if (!activeClientId) {
         alert('Select a client conversation on the left before sending.');
@@ -287,7 +294,7 @@ async function sendTherapistReply() {
         const data = await response.json();
         if (!response.ok) {
             if (response.status === 401) {
-                localStorage.clear();
+                authStorage.clear();
                 alert(data.message || 'Session expired. Please sign in again.');
                 window.location.href = '../landing-page/login.html';
                 return;
@@ -316,8 +323,8 @@ async function sendTherapistReply() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const token = localStorage.getItem('token');
-    const userRole = localStorage.getItem('userRole');
+    const token = authStorage.get('token');
+    const userRole = authStorage.get('userRole');
 
     if (!token || userRole !== 'therapist') {
         alert('Please sign in with the Therapist role to open this portal.');
@@ -325,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    const identifier = localStorage.getItem('userIdentifier') || 'Therapist';
+    const identifier = authStorage.get('userIdentifier') || 'Therapist';
     const displayName = identifier.includes('@')
         ? identifier.split('@')[0].replace(/[._]/g, ' ')
         : identifier;

@@ -45,8 +45,8 @@ tabBtns.forEach(btn => {
 // DATABASE LOGIC (Connecting to Node.js / MongoDB)
 
 // Get the user's token and ID from local storage
-const token = localStorage.getItem('token');
-const currentUserIdentifier = localStorage.getItem('userIdentifier');
+const token = authStorage.get('token');
+const currentUserIdentifier = authStorage.get('userIdentifier');
 
 //  If they aren't logged in, kick them back to login
 if (!token) {

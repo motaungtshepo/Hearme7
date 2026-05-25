@@ -84,9 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await response.json();
 
                 if (response.ok) {
-                    localStorage.setItem('token', data.token);
-                    localStorage.setItem('userRole', data.user.role);
-                    localStorage.setItem('userIdentifier', data.user.identifier);
+                    authStorage.setSession({ token: data.token, user: data.user });
 
                     const destination = getHomeForRole(data.user.role);
                     const welcome =

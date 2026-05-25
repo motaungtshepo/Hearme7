@@ -285,25 +285,31 @@ app.post('/api/messages', verifyToken, async (req, res) => {
             return res.status(400).json({ message: 'Message content is required.' });
         }
 
-        if (req.user.role === 'therapist') {
-            if (!clientId) {
-                return res.status(400).json({ message: 'Client is required. Select a conversation first.' });
+        const account = await User.findById(req.user.userId);
+        if (!account) {
+            return res.status(401).json({ message: 'Account not found. Please sign in again.' });
+        }
+
+        const isTherapistReply = Boolean(clientId);
+
+        if (isTherapistReply) {
+            if (account.role !== 'therapist') {
+                return res.status(403).json({
+                    message: 'You are signed in as a user. Use Messages (not the Therapist Portal) to talk to therapists, or sign in again with the Therapist role.'
+                });
             }
             if (!mongoose.Types.ObjectId.isValid(clientId)) {
                 return res.status(400).json({ message: 'Invalid client id.' });
             }
 
-            const therapist = await User.findById(req.user.userId);
-            if (!therapist) {
-                return res.status(401).json({ message: 'Therapist account not found. Please sign in again.' });
-            }
-
-            const result = await saveTherapistReply(therapist, clientId, trimmedContent);
+            const result = await saveTherapistReply(account, clientId, trimmedContent);
             return res.status(result.status).json(result.body);
         }
 
-        if (req.user.role !== 'user') {
-            return res.status(403).json({ message: 'Invalid role for sending messages.' });
+        if (account.role !== 'user') {
+            return res.status(403).json({
+                message: 'Sign in as a user to message therapists, or include clientId only when replying as a therapist.'
+            });
         }
 
         if (!therapistId) {
@@ -318,17 +324,12 @@ app.post('/api/messages', verifyToken, async (req, res) => {
             return res.status(404).json({ message: 'Therapist not found.' });
         }
 
-        const sender = await User.findById(req.user.userId);
-        if (!sender) {
-            return res.status(401).json({ message: 'User account not found. Please sign in again.' });
-        }
-
         const message = new Message({
             therapistId: therapist._id,
-            clientId: sender._id,
-            senderId: sender._id,
+            clientId: account._id,
+            senderId: account._id,
             senderRole: 'user',
-            senderIdentifier: sender.identifier,
+            senderIdentifier: account.identifier,
             content: trimmedContent
         });
 
