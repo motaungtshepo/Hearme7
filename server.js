@@ -225,7 +225,7 @@ const verifyToken = (req, res, next) => {
         req.user = decoded; // Attach the user's ID and role to the request
         next(); // Let them through to the route
     } catch (error) {
-        res.status(400).json({ message: 'Invalid token.' });
+        res.status(401).json({ message: 'Invalid or expired token. Please sign in again.' });
     }
 };
 
@@ -279,13 +279,26 @@ function isTherapistMessage(msg) {
 app.post('/api/messages', verifyToken, async (req, res) => {
     try {
         const { therapistId, clientId, content } = req.body;
-        if (!content?.trim()) {
+        const trimmedContent = content?.trim();
+
+        if (!trimmedContent) {
             return res.status(400).json({ message: 'Message content is required.' });
         }
 
         if (req.user.role === 'therapist') {
+            if (!clientId) {
+                return res.status(400).json({ message: 'Client is required. Select a conversation first.' });
+            }
+            if (!mongoose.Types.ObjectId.isValid(clientId)) {
+                return res.status(400).json({ message: 'Invalid client id.' });
+            }
+
             const therapist = await User.findById(req.user.userId);
-            const result = await saveTherapistReply(therapist, clientId, content);
+            if (!therapist) {
+                return res.status(401).json({ message: 'Therapist account not found. Please sign in again.' });
+            }
+
+            const result = await saveTherapistReply(therapist, clientId, trimmedContent);
             return res.status(result.status).json(result.body);
         }
 
@@ -294,7 +307,10 @@ app.post('/api/messages', verifyToken, async (req, res) => {
         }
 
         if (!therapistId) {
-            return res.status(400).json({ message: 'Therapist is required.' });
+            return res.status(400).json({ message: 'Therapist is required. Select a conversation first.' });
+        }
+        if (!mongoose.Types.ObjectId.isValid(therapistId)) {
+            return res.status(400).json({ message: 'Invalid therapist id.' });
         }
 
         const therapist = await User.findOne({ _id: therapistId, role: 'therapist' });
@@ -303,13 +319,17 @@ app.post('/api/messages', verifyToken, async (req, res) => {
         }
 
         const sender = await User.findById(req.user.userId);
+        if (!sender) {
+            return res.status(401).json({ message: 'User account not found. Please sign in again.' });
+        }
+
         const message = new Message({
             therapistId: therapist._id,
             clientId: sender._id,
             senderId: sender._id,
             senderRole: 'user',
             senderIdentifier: sender.identifier,
-            content: content.trim()
+            content: trimmedContent
         });
 
         await message.save();
