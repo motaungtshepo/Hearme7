@@ -49,12 +49,20 @@ async function prepareDatabase() {
         await therapist.save();
     }
 
-    const legacyMessages = await Message.find({ clientId: { $exists: false } });
-    for (const msg of legacyMessages) {
-        if (!msg.senderRole || msg.senderRole === 'user') {
-            msg.clientId = msg.senderId;
-            await msg.save();
-        }
+    // Only backfill new-schema messages (skip old expert_name/message documents)
+    const messagesNeedingClientId = await Message.find({
+        therapistId: { $exists: true },
+        senderId: { $exists: true },
+        clientId: { $exists: false }
+    }).select('_id senderId senderRole');
+
+    for (const msg of messagesNeedingClientId) {
+        if (msg.senderRole === 'therapist') continue;
+
+        await Message.updateOne(
+            { _id: msg._id },
+            { $set: { clientId: msg.senderId, senderRole: 'user' } }
+        );
     }
 }
 
