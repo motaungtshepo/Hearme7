@@ -33,6 +33,26 @@ function getToken() {
     return token;
 }
 
+async function parseApiResponse(response) {
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+        throw new Error('Server error. Restart npm start and sign in again.');
+    }
+    return response.json();
+}
+
+function handleAuthError(status, message) {
+    if (status === 401 || message?.toLowerCase().includes('token')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('userIdentifier');
+        alert(message || 'Session expired. Please sign in again.');
+        window.location.href = '../landing-page/login.html';
+        return true;
+    }
+    return false;
+}
+
 function getConversation(therapistId) {
     return inboxData.conversations.find(
         (entry) => entry.therapistId.toString() === therapistId.toString()
@@ -56,13 +76,9 @@ async function loadInbox() {
         headers: { Authorization: `Bearer ${token}` }
     });
 
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-        throw new Error('Server error. Restart npm start and refresh.');
-    }
-
-    const data = await response.json();
+    const data = await parseApiResponse(response);
     if (!response.ok) {
+        if (handleAuthError(response.status, data.message)) return;
         throw new Error(data.message || 'Could not load messages.');
     }
 
@@ -227,7 +243,12 @@ async function sendUserMessage() {
     const replyInput = document.getElementById('user-reply-input');
     const replySend = document.getElementById('user-reply-send');
 
-    if (!token || !activeTherapistId || !replyInput) return;
+    if (!token || !replyInput) return;
+
+    if (!activeTherapistId) {
+        alert('Select a therapist conversation on the left before sending.');
+        return;
+    }
 
     const content = replyInput.value.trim();
     if (!content) {
@@ -244,11 +265,15 @@ async function sendUserMessage() {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`
             },
-            body: JSON.stringify({ therapistId: activeTherapistId, content })
+            body: JSON.stringify({
+                therapistId: String(activeTherapistId),
+                content
+            })
         });
 
-        const data = await response.json();
+        const data = await parseApiResponse(response);
         if (!response.ok) {
+            if (handleAuthError(response.status, data.message)) return;
             alert(data.message || 'Could not send message.');
             return;
         }

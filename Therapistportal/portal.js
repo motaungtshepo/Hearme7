@@ -249,7 +249,12 @@ async function sendTherapistReply() {
     const replyInput = document.getElementById('therapist-reply-input');
     const sendBtn = document.getElementById('therapist-reply-send');
 
-    if (!token || !activeClientId || !replyInput) return;
+    if (!token || !replyInput) return;
+
+    if (!activeClientId) {
+        alert('Select a client conversation on the left before sending.');
+        return;
+    }
 
     const content = replyInput.value.trim();
     if (!content) {
@@ -266,7 +271,10 @@ async function sendTherapistReply() {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`
             },
-            body: JSON.stringify({ clientId: activeClientId, content })
+            body: JSON.stringify({
+                clientId: String(activeClientId),
+                content
+            })
         });
 
         const contentType = response.headers.get('content-type') || '';
@@ -278,6 +286,12 @@ async function sendTherapistReply() {
 
         const data = await response.json();
         if (!response.ok) {
+            if (response.status === 401) {
+                localStorage.clear();
+                alert(data.message || 'Session expired. Please sign in again.');
+                window.location.href = '../landing-page/login.html';
+                return;
+            }
             alert(data.message || 'Could not send reply.');
             return;
         }

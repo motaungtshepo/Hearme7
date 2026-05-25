@@ -221,9 +221,18 @@ function bindExpertActions() {
                     })
                 });
 
-                const data = await response.json();
+                const contentType = response.headers.get('content-type') || '';
+                const data = contentType.includes('application/json')
+                    ? await response.json()
+                    : { message: 'Server error. Restart npm start and sign in again.' };
 
                 if (!response.ok) {
+                    if (response.status === 401) {
+                        localStorage.clear();
+                        alert(data.message || 'Session expired. Please sign in again.');
+                        window.location.href = '../landing-page/login.html';
+                        return;
+                    }
                     alert(data.message || 'Could not send message.');
                     return;
                 }
