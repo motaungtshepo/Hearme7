@@ -143,6 +143,46 @@
         </main>
     </div>
 
+    <div class="contact-modal" id="contact-modal" hidden>
+        <div class="contact-modal-backdrop" id="contact-modal-backdrop"></div>
+        <div class="contact-modal-panel" role="dialog" aria-labelledby="contact-modal-title">
+            <button type="button" class="contact-modal-close" id="contact-modal-close" aria-label="Close">
+                <i data-lucide="x"></i>
+            </button>
+            <h3 id="contact-modal-title">Contact expert</h3>
+            <p class="contact-modal-subtitle" id="contact-modal-subtitle"></p>
+            <label class="contact-modal-label" for="contact-message">Your message</label>
+            <textarea id="contact-message" rows="4" placeholder="Introduce yourself and what you'd like help with..."></textarea>
+            <div class="contact-modal-actions">
+                <button type="button" class="btn btn-outline" id="contact-modal-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="contact-modal-send">
+                    <i data-lucide="send"></i> Send message
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="contact-modal" id="schedule-modal" hidden>
+        <div class="contact-modal-backdrop" id="schedule-modal-backdrop"></div>
+        <div class="contact-modal-panel" role="dialog" aria-labelledby="schedule-modal-title">
+            <button type="button" class="contact-modal-close" id="schedule-modal-close" aria-label="Close">
+                <i data-lucide="x"></i>
+            </button>
+            <h3 id="schedule-modal-title">Schedule session</h3>
+            <p class="contact-modal-subtitle" id="schedule-modal-subtitle"></p>
+            <label class="contact-modal-label" for="schedule-date">Preferred date</label>
+            <input type="date" id="schedule-date">
+            <label class="contact-modal-label" for="schedule-time">Preferred time</label>
+            <input type="time" id="schedule-time">
+            <div class="contact-modal-actions">
+                <button type="button" class="btn btn-outline" id="schedule-modal-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="schedule-modal-confirm">
+                    <i data-lucide="calendar"></i> Request session
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="experts.js"></script>
 </body>
 </html>
