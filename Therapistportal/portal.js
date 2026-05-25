@@ -1,6 +1,7 @@
 const API_BASE = 'http://localhost:5000/api';
 let inboxData = { conversations: [], unreadTotal: 0 };
-let activeSenderId = null;
+let activeClientId = null;
+let markingRead = false;
 
 function escapeHtml(text) {
     const div = document.createElement('div');
@@ -38,6 +39,19 @@ function clientInitials(identifier) {
         .toUpperCase() || 'CL';
 }
 
+function getConversation(clientId) {
+    return inboxData.conversations.find(
+        (entry) => entry.clientId.toString() === clientId.toString()
+    );
+}
+
+function updateUnreadBadge() {
+    const unreadCount = document.getElementById('unread-messages-count');
+    if (unreadCount) {
+        unreadCount.textContent = String(inboxData.unreadTotal || 0);
+    }
+}
+
 async function loadInbox(token) {
     const response = await fetch(`${API_BASE}/messages/inbox`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -49,39 +63,44 @@ async function loadInbox(token) {
     }
 
     inboxData = data;
-    renderInbox();
+    renderInboxList();
+
+    if (inboxData.conversations.length) {
+        const keepActive = activeClientId &&
+            inboxData.conversations.some((c) => c.clientId.toString() === activeClientId);
+        const clientId = keepActive
+            ? activeClientId
+            : inboxData.conversations[0].clientId.toString();
+        showConversation(clientId, false);
+    } else {
+        showConversation(null, false);
+    }
 }
 
-function renderInbox() {
+function renderInboxList() {
     const inboxList = document.getElementById('inbox-list');
-    const inboxEmpty = document.getElementById('inbox-empty');
-    const unreadCount = document.getElementById('unread-messages-count');
 
-    if (unreadCount) {
-        unreadCount.textContent = String(inboxData.unreadTotal || 0);
-    }
+    updateUnreadBadge();
 
     if (!inboxList) return;
 
     if (!inboxData.conversations.length) {
         inboxList.innerHTML = '<p class="inbox-empty" id="inbox-empty">No client messages yet.</p>';
-        renderConversation(null);
         return;
     }
 
     inboxList.innerHTML = inboxData.conversations
-        .map((conversation, index) => {
+        .map((conversation) => {
+            const clientId = conversation.clientId.toString();
             const preview = conversation.lastMessage.content.slice(0, 60);
-            const isActive =
-                activeSenderId === conversation.senderId.toString() ||
-                (!activeSenderId && index === 0);
+            const isActive = activeClientId === clientId;
             const badge =
                 conversation.unreadCount > 0
                     ? `<div class="unread-badge">${conversation.unreadCount}</div>`
                     : '';
 
             return `
-                <div class="inbox-item ${isActive ? 'active' : ''}" data-sender-id="${conversation.senderId}">
+                <div class="inbox-item ${isActive ? 'active' : ''}" data-client-id="${clientId}">
                     <div class="c-avatar blue sm">${escapeHtml(clientInitials(conversation.senderIdentifier))}</div>
                     <div class="inbox-details">
                         <div class="flex-bw">
@@ -98,26 +117,39 @@ function renderInbox() {
 
     document.querySelectorAll('.inbox-item').forEach((item) => {
         item.addEventListener('click', () => {
-            const senderId = item.getAttribute('data-sender-id');
-            selectConversation(senderId);
+            showConversation(item.getAttribute('data-client-id'), true);
         });
     });
-
-    const firstSenderId = inboxData.conversations[0].senderId.toString();
-    selectConversation(activeSenderId || firstSenderId);
 }
 
-function renderConversation(senderId) {
+function renderChatMessages(conversation) {
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) return;
+
+    chatHistory.innerHTML = conversation.messages
+        .map((msg) => {
+            const isOutgoing = msg.senderRole === 'therapist';
+            return `
+                <div class="bubble ${isOutgoing ? 'outgoing' : 'incoming'}">
+                    <p>${escapeHtml(msg.content)}</p>
+                    <span class="time">${formatTime(msg.createdAt)}</span>
+                </div>
+            `;
+        })
+        .join('');
+
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+}
+
+function showConversation(clientId, markRead) {
     const chatHistory = document.getElementById('chat-history');
     const chatClientName = document.getElementById('chat-client-name');
     const chatClientMeta = document.getElementById('chat-client-meta');
     const chatAvatar = document.getElementById('chat-avatar');
+    const replyInput = document.getElementById('therapist-reply-input');
 
-    const conversation = inboxData.conversations.find(
-        (entry) => entry.senderId.toString() === senderId
-    );
-
-    if (!conversation) {
+    if (!clientId) {
+        activeClientId = null;
         if (chatClientName) chatClientName.textContent = 'Select a conversation';
         if (chatClientMeta) chatClientMeta.textContent = 'Client messages appear here';
         if (chatAvatar) chatAvatar.textContent = '--';
@@ -125,13 +157,17 @@ function renderConversation(senderId) {
             chatHistory.innerHTML =
                 '<p class="inbox-empty" id="chat-empty">Select a client from the left to read their messages.</p>';
         }
+        if (replyInput) replyInput.disabled = true;
         return;
     }
 
-    activeSenderId = senderId;
+    const conversation = getConversation(clientId);
+    if (!conversation) return;
+
+    activeClientId = clientId;
 
     document.querySelectorAll('.inbox-item').forEach((item) => {
-        item.classList.toggle('active', item.getAttribute('data-sender-id') === senderId);
+        item.classList.toggle('active', item.getAttribute('data-client-id') === clientId);
     });
 
     if (chatClientName) {
@@ -143,60 +179,110 @@ function renderConversation(senderId) {
     if (chatAvatar) {
         chatAvatar.textContent = clientInitials(conversation.senderIdentifier);
     }
-
-    if (chatHistory) {
-        chatHistory.innerHTML = conversation.messages
-            .map(
-                (msg) => `
-                <div class="bubble incoming">
-                    <p>${escapeHtml(msg.content)}</p>
-                    <span class="time">${formatTime(msg.createdAt)}</span>
-                </div>
-            `
-            )
-            .join('');
-        chatHistory.scrollTop = chatHistory.scrollHeight;
+    if (replyInput) {
+        replyInput.disabled = false;
+        replyInput.value = '';
     }
 
-    markConversationRead(senderId);
+    renderChatMessages(conversation);
+
+    if (markRead) {
+        markConversationRead(clientId);
+    }
 }
 
-async function markConversationRead(senderId) {
+async function markConversationRead(clientId) {
+    if (markingRead) return;
+
+    const conversation = getConversation(clientId);
+    if (!conversation || conversation.unreadCount === 0) return;
+
     const token = localStorage.getItem('token');
     if (!token) return;
 
+    markingRead = true;
+
     try {
-        await fetch(`${API_BASE}/messages/read`, {
+        const response = await fetch(`${API_BASE}/messages/read`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`
             },
-            body: JSON.stringify({ senderId })
+            body: JSON.stringify({ senderId: clientId })
         });
 
-        const conversation = inboxData.conversations.find(
-            (entry) => entry.senderId.toString() === senderId
-        );
-        if (conversation) {
-            conversation.unreadCount = 0;
-            conversation.messages.forEach((msg) => {
-                msg.read = true;
-            });
-            inboxData.unreadTotal = inboxData.conversations.reduce(
-                (total, entry) => total + entry.unreadCount,
-                0
-            );
-            renderInbox();
-            selectConversation(senderId);
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || 'Could not mark messages as read.');
         }
+
+        conversation.unreadCount = 0;
+        conversation.messages.forEach((msg) => {
+            if (msg.senderRole !== 'therapist') {
+                msg.read = true;
+            }
+        });
+        inboxData.unreadTotal = inboxData.conversations.reduce(
+            (total, entry) => total + entry.unreadCount,
+            0
+        );
+        renderInboxList();
     } catch (error) {
         console.error('Could not mark messages as read:', error);
+    } finally {
+        markingRead = false;
     }
 }
 
-function selectConversation(senderId) {
-    renderConversation(senderId);
+async function sendTherapistReply() {
+    const token = localStorage.getItem('token');
+    const replyInput = document.getElementById('therapist-reply-input');
+    const sendBtn = document.getElementById('therapist-reply-send');
+
+    if (!token || !activeClientId || !replyInput) return;
+
+    const content = replyInput.value.trim();
+    if (!content) {
+        replyInput.focus();
+        return;
+    }
+
+    if (sendBtn) sendBtn.disabled = true;
+
+    try {
+        const response = await fetch(`${API_BASE}/messages/reply`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ clientId: activeClientId, content })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            alert(data.message || 'Could not send reply.');
+            return;
+        }
+
+        const conversation = getConversation(activeClientId);
+        if (conversation) {
+            conversation.messages.push(data.data);
+            conversation.lastMessage = data.data;
+            renderChatMessages(conversation);
+            renderInboxList();
+        } else {
+            await loadInbox(token);
+        }
+
+        replyInput.value = '';
+    } catch (error) {
+        console.error(error);
+        alert('Could not connect to the server.');
+    } finally {
+        if (sendBtn) sendBtn.disabled = false;
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -232,6 +318,23 @@ document.addEventListener('DOMContentLoaded', () => {
             .slice(0, 2)
             .toUpperCase();
         portalAvatar.textContent = initials;
+    }
+
+    const replyInput = document.getElementById('therapist-reply-input');
+    const replySend = document.getElementById('therapist-reply-send');
+
+    if (replyInput) {
+        replyInput.disabled = true;
+        replyInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendTherapistReply();
+            }
+        });
+    }
+
+    if (replySend) {
+        replySend.addEventListener('click', sendTherapistReply);
     }
 
     const navItems = document.querySelectorAll('.nav-item');

@@ -6,10 +6,20 @@ const messageSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    clientId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
     senderId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
+    },
+    senderRole: {
+        type: String,
+        enum: ['user', 'therapist'],
+        default: 'user'
     },
     senderIdentifier: {
         type: String,

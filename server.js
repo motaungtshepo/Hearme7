@@ -48,6 +48,14 @@ async function prepareDatabase() {
         }
         await therapist.save();
     }
+
+    const legacyMessages = await Message.find({ clientId: { $exists: false } });
+    for (const msg of legacyMessages) {
+        if (!msg.senderRole || msg.senderRole === 'user') {
+            msg.clientId = msg.senderId;
+            await msg.save();
+        }
+    }
 }
 
 function formatDisplayName(identifier) {
@@ -250,7 +258,9 @@ app.post('/api/messages', verifyToken, async (req, res) => {
         const sender = await User.findById(req.user.userId);
         const message = new Message({
             therapistId: therapist._id,
+            clientId: sender._id,
             senderId: sender._id,
+            senderRole: 'user',
             senderIdentifier: sender.identifier,
             content: content.trim()
         });
@@ -267,6 +277,65 @@ app.post('/api/messages', verifyToken, async (req, res) => {
 });
 
 
+function getThreadClientId(msg, therapistId) {
+    if (msg.clientId) {
+        return msg.clientId.toString();
+    }
+    if (msg.senderRole === 'therapist') {
+        return null;
+    }
+    if (msg.senderId.toString() === therapistId.toString()) {
+        return null;
+    }
+    return msg.senderId.toString();
+}
+
+function isUserMessage(msg) {
+    return !msg.senderRole || msg.senderRole === 'user';
+}
+
+
+//  THERAPIST REPLY TO CLIENT
+// ==========================================
+app.post('/api/messages/reply', verifyToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'therapist') {
+            return res.status(403).json({ message: 'Only therapists can send replies.' });
+        }
+
+        const { clientId, content } = req.body;
+        if (!clientId || !content?.trim()) {
+            return res.status(400).json({ message: 'Client and message content are required.' });
+        }
+
+        const therapist = await User.findById(req.user.userId);
+        const client = await User.findOne({ _id: clientId, role: 'user' });
+        if (!client) {
+            return res.status(404).json({ message: 'Client not found.' });
+        }
+
+        const message = new Message({
+            therapistId: therapist._id,
+            clientId: client._id,
+            senderId: therapist._id,
+            senderRole: 'therapist',
+            senderIdentifier: therapist.identifier,
+            content: content.trim(),
+            read: true
+        });
+
+        await message.save();
+
+        res.status(201).json({
+            message: 'Reply sent successfully.',
+            data: message
+        });
+    } catch (error) {
+        return sendDbError(res, error, 'send reply');
+    }
+});
+
+
 //  THERAPIST INBOX
 // ==========================================
 app.get('/api/messages/inbox', verifyToken, async (req, res) => {
@@ -275,17 +344,28 @@ app.get('/api/messages/inbox', verifyToken, async (req, res) => {
             return res.status(403).json({ message: 'Only therapists can view this inbox.' });
         }
 
-        const messages = await Message.find({ therapistId: req.user.userId })
+        const therapistId = req.user.userId;
+        const messages = await Message.find({ therapistId })
             .sort({ createdAt: -1 });
 
         const conversationsMap = new Map();
 
         messages.forEach((msg) => {
-            const key = msg.senderId.toString();
+            const key = getThreadClientId(msg, therapistId);
+            if (!key) return;
+
             if (!conversationsMap.has(key)) {
+                const clientIdentifier = isUserMessage(msg)
+                    ? msg.senderIdentifier
+                    : messages.find(
+                          (entry) =>
+                              getThreadClientId(entry, therapistId) === key && isUserMessage(entry)
+                      )?.senderIdentifier || 'Client';
+
                 conversationsMap.set(key, {
-                    senderId: msg.senderId,
-                    senderIdentifier: msg.senderIdentifier,
+                    clientId: key,
+                    senderId: key,
+                    senderIdentifier: clientIdentifier,
                     unreadCount: 0,
                     messages: []
                 });
@@ -293,12 +373,17 @@ app.get('/api/messages/inbox', verifyToken, async (req, res) => {
 
             const conversation = conversationsMap.get(key);
             conversation.messages.push(msg);
-            if (!msg.read) {
+            if (isUserMessage(msg) && !msg.read) {
                 conversation.unreadCount += 1;
             }
         });
 
         const conversations = Array.from(conversationsMap.values()).map((conversation) => {
+            const userMsg = conversation.messages.find((msg) => isUserMessage(msg));
+            if (userMsg) {
+                conversation.senderIdentifier = userMsg.senderIdentifier;
+            }
+
             conversation.messages.sort(
                 (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
             );
@@ -311,7 +396,7 @@ app.get('/api/messages/inbox', verifyToken, async (req, res) => {
         );
 
         res.status(200).json({
-            unreadTotal: messages.filter((msg) => !msg.read).length,
+            unreadTotal: messages.filter((msg) => isUserMessage(msg) && !msg.read).length,
             conversations
         });
     } catch (error) {
@@ -334,7 +419,12 @@ app.patch('/api/messages/read', verifyToken, async (req, res) => {
         }
 
         await Message.updateMany(
-            { therapistId: req.user.userId, senderId, read: false },
+            {
+                therapistId: req.user.userId,
+                clientId: senderId,
+                read: false,
+                $or: [{ senderRole: 'user' }, { senderRole: { $exists: false } }]
+            },
             { $set: { read: true } }
         );
 
