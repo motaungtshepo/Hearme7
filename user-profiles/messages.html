@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HearMe | Messages</title>
+    <link rel="stylesheet" href="messages.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <header class="navbar">
+        <h1 class="logo">HearMe</h1>
+        <div class="user-avatar">A</div>
+    </header>
+
+    <div class="app-container">
+        <nav class="sidebar">
+            <a href="community-feeds.html" class="nav-item"><i data-lucide="home"></i><span>Feed</span></a>
+            <a href="groups.html" class="nav-item"><i data-lucide="users"></i><span>Groups</span></a>
+            <a href="ai-chat.html" class="nav-item"><i data-lucide="message-square"></i><span>AI Chat</span></a>
+            <a href="experts.html" class="nav-item"><i data-lucide="user-plus"></i><span>Experts</span></a>
+            <a href="messages.html" class="nav-item active"><i data-lucide="mail"></i><span>Messages</span></a>
+            <a href="SOS.html" class="nav-item"><i data-lucide="alert-circle"></i><span>SOS</span></a>
+            <a href="relief.html" class="nav-item"><i data-lucide="heart"></i><span>Relief</span></a>
+            <a href="profile.html" class="nav-item"><i data-lucide="user"></i><span>Profile</span></a>
+        </nav>
+
+        <main class="messages-area">
+            <div class="page-header">
+                <h2 class="page-title">My Messages</h2>
+                <p class="page-subtitle">Conversations with your therapists</p>
+            </div>
+
+            <div class="messages-layout">
+                <div class="inbox-sidebar">
+                    <div class="inbox-list" id="inbox-list">
+                        <p class="inbox-empty" id="inbox-status">Loading conversations...</p>
+                    </div>
+                </div>
+                <div class="chat-area">
+                    <div class="chat-header" id="chat-header">
+                        <div class="chat-header-info">
+                            <div class="chat-avatar" id="chat-avatar">--</div>
+                            <div>
+                                <strong id="chat-therapist-name">Select a conversation</strong>
+                                <span class="chat-meta" id="chat-therapist-meta">Therapist replies appear here</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-history" id="chat-history">
+                        <p class="inbox-empty">Select a therapist from the left to view your conversation.</p>
+                    </div>
+                    <div class="chat-footer">
+                        <div class="input-area">
+                            <input type="text" id="user-reply-input" placeholder="Type a message..." disabled>
+                            <button type="button" class="send-btn" id="user-reply-send" disabled>
+                                <i data-lucide="send"></i> Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="messages.js"></script>
+</body>
+</html>

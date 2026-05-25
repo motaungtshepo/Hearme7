@@ -258,7 +258,7 @@ async function saveTherapistReply(therapist, clientId, content) {
         senderRole: 'therapist',
         senderIdentifier: therapist.identifier,
         content: content.trim(),
-        read: true
+        read: false
     });
 
     await message.save();
@@ -267,6 +267,10 @@ async function saveTherapistReply(therapist, clientId, content) {
         status: 201,
         body: { message: 'Reply sent successfully.', data: message }
     };
+}
+
+function isTherapistMessage(msg) {
+    return msg.senderRole === 'therapist';
 }
 
 
@@ -355,6 +359,99 @@ app.post('/api/messages/reply', verifyToken, async (req, res) => {
         res.status(result.status).json(result.body);
     } catch (error) {
         return sendDbError(res, error, 'send reply');
+    }
+});
+
+
+//  USER INBOX (messages with therapists)
+// ==========================================
+app.get('/api/messages/user-inbox', verifyToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'user') {
+            return res.status(403).json({ message: 'Only users can view this inbox.' });
+        }
+
+        const userId = req.user.userId;
+        const messages = await Message.find({
+            $or: [
+                { clientId: userId },
+                { senderId: userId, therapistId: { $exists: true } }
+            ]
+        }).sort({ createdAt: -1 });
+
+        const conversationsMap = new Map();
+
+        for (const msg of messages) {
+            const therapistKey = msg.therapistId?.toString();
+            if (!therapistKey) continue;
+
+            if (!conversationsMap.has(therapistKey)) {
+                const therapist = await User.findById(msg.therapistId);
+                conversationsMap.set(therapistKey, {
+                    therapistId: therapistKey,
+                    therapistName: therapist
+                        ? therapist.displayName || formatDisplayName(therapist.identifier)
+                        : 'Therapist',
+                    unreadCount: 0,
+                    messages: []
+                });
+            }
+
+            const conversation = conversationsMap.get(therapistKey);
+            conversation.messages.push(msg);
+            if (isTherapistMessage(msg) && !msg.read) {
+                conversation.unreadCount += 1;
+            }
+        }
+
+        const conversations = Array.from(conversationsMap.values()).map((conversation) => {
+            conversation.messages.sort(
+                (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+            );
+            conversation.lastMessage = conversation.messages[conversation.messages.length - 1];
+            return conversation;
+        });
+
+        conversations.sort(
+            (a, b) => new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt)
+        );
+
+        res.status(200).json({
+            unreadTotal: messages.filter((msg) => isTherapistMessage(msg) && !msg.read).length,
+            conversations
+        });
+    } catch (error) {
+        return sendDbError(res, error, 'fetch user inbox');
+    }
+});
+
+
+//  MARK THERAPIST MESSAGES AS READ (User)
+// ==========================================
+app.patch('/api/messages/user-read', verifyToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'user') {
+            return res.status(403).json({ message: 'Only users can mark these messages as read.' });
+        }
+
+        const { therapistId } = req.body;
+        if (!therapistId) {
+            return res.status(400).json({ message: 'therapistId is required.' });
+        }
+
+        await Message.updateMany(
+            {
+                clientId: req.user.userId,
+                therapistId,
+                senderRole: 'therapist',
+                read: false
+            },
+            { $set: { read: true } }
+        );
+
+        res.status(200).json({ message: 'Messages marked as read.' });
+    } catch (error) {
+        return sendDbError(res, error, 'mark user messages read');
     }
 });
 
@@ -519,7 +616,7 @@ async function startServer() {
 
         app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
-            console.log('API ready: /api/therapists, /api/messages (incl. replies), /api/messages/inbox');
+            console.log('API ready: /api/therapists, /api/messages, /api/messages/user-inbox');
         });
     } catch (err) {
         console.error('Failed to start server:', err);

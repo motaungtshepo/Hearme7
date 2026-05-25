@@ -231,7 +231,9 @@ function bindExpertActions() {
                 const expertName =
                     contactTitle?.textContent?.replace(/^Contact\s+/, '') || 'the therapist';
                 closeModal(contactModal);
-                alert(`Your message to ${expertName} was sent. They can read it in their Therapist Portal.`);
+                alert(
+                    `Your message to ${expertName} was sent. Check their reply under Messages in the sidebar.`
+                );
             } catch (error) {
                 console.error(error);
                 alert('Could not connect to the server.');
