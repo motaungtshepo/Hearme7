@@ -1,4 +1,38 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('token');
+    const userRole = localStorage.getItem('userRole');
+
+    if (!token || userRole !== 'therapist') {
+        alert('Please sign in with the Therapist role to open this portal.');
+        window.location.href = '../landing-page/login.html';
+        return;
+    }
+
+    const identifier = localStorage.getItem('userIdentifier') || 'Therapist';
+    const displayName = identifier.includes('@')
+        ? identifier.split('@')[0].replace(/[._]/g, ' ')
+        : identifier;
+    const formattedName = displayName
+        .split(' ')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+
+    const portalName = document.querySelector('.user-chip strong');
+    const portalAvatar = document.querySelector('.user-chip .avatar');
+    if (portalName) {
+        portalName.textContent = formattedName;
+    }
+    if (portalAvatar && formattedName) {
+        const initials = formattedName
+            .split(' ')
+            .map((n) => n[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase();
+        portalAvatar.textContent = initials;
+    }
+
     const navItems = document.querySelectorAll('.nav-item');
     const views = document.querySelectorAll('.view-panel');
 

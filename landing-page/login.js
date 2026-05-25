@@ -1,13 +1,30 @@
 // login.js
 
+function getHomeForRole(role) {
+    switch (role) {
+        case 'therapist':
+            return '../Therapistportal/portal.html';
+        case 'admin':
+            return '../Therapistportal/portal.html';
+        default:
+            return '../user-profiles/community-feeds.html';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const roleOptions = document.querySelectorAll('.role-option');
     const anonToggleContainer = document.querySelector('.anon-toggle');
     const anonCheckbox = document.getElementById('anonymous');
     const identifierInput = document.getElementById('email');
 
+    const therapistHint = document.getElementById('therapist-login-hint');
+
     function updateLoginFields(selectedRole) {
         const isStaff = selectedRole === 'admin' || selectedRole === 'therapist';
+
+        if (therapistHint) {
+            therapistHint.hidden = selectedRole !== 'therapist';
+        }
 
         if (anonToggleContainer) {
             anonToggleContainer.style.display = isStaff ? 'none' : 'flex';
@@ -67,13 +84,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await response.json();
 
                 if (response.ok) {
-                    alert('Login successful! Welcome back to HearMe.');
-
                     localStorage.setItem('token', data.token);
                     localStorage.setItem('userRole', data.user.role);
                     localStorage.setItem('userIdentifier', data.user.identifier);
 
-                    window.location.href = '../user-profiles/community-feeds.html';
+                    const destination = getHomeForRole(data.user.role);
+                    const welcome =
+                        data.user.role === 'therapist'
+                            ? 'Welcome back! Opening your Therapist Portal...'
+                            : 'Login successful! Welcome back to HearMe.';
+                    alert(welcome);
+                    window.location.href = destination;
                 } else {
                     alert(`Login failed: ${data.message}`);
                 }
