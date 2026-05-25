@@ -74,6 +74,12 @@ async function loadInbox() {
         headers: { Authorization: `Bearer ${token}` }
     });
 
+    if (response.status === 404) {
+        throw new Error(
+            'Messages API not found. Stop the server (Ctrl+C), run npm start once, and check the terminal shows "API ready: ... user-inbox".'
+        );
+    }
+
     const data = await parseApiResponse(response);
     if (!response.ok) {
         if (handleAuthError(response.status, data.message)) return;
