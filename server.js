@@ -396,6 +396,8 @@ app.get('/api/messages/inbox', verifyToken, async (req, res) => {
                 (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
             );
             conversation.lastMessage = conversation.messages[conversation.messages.length - 1];
+            conversation.clientId = conversation.clientId || conversation.senderId;
+
             return conversation;
         });
 

@@ -39,9 +39,14 @@ function clientInitials(identifier) {
         .toUpperCase() || 'CL';
 }
 
+function getClientId(conversation) {
+    const id = conversation?.clientId ?? conversation?.senderId;
+    return id ? id.toString() : null;
+}
+
 function getConversation(clientId) {
     return inboxData.conversations.find(
-        (entry) => entry.clientId.toString() === clientId.toString()
+        (entry) => getClientId(entry) === clientId.toString()
     );
 }
 
@@ -66,11 +71,12 @@ async function loadInbox(token) {
     renderInboxList();
 
     if (inboxData.conversations.length) {
-        const keepActive = activeClientId &&
-            inboxData.conversations.some((c) => c.clientId.toString() === activeClientId);
+        const keepActive =
+            activeClientId &&
+            inboxData.conversations.some((c) => getClientId(c) === activeClientId);
         const clientId = keepActive
             ? activeClientId
-            : inboxData.conversations[0].clientId.toString();
+            : getClientId(inboxData.conversations[0]);
         showConversation(clientId, false);
     } else {
         showConversation(null, false);
@@ -90,8 +96,9 @@ function renderInboxList() {
     }
 
     inboxList.innerHTML = inboxData.conversations
+        .filter((conversation) => getClientId(conversation) && conversation.lastMessage?.content)
         .map((conversation) => {
-            const clientId = conversation.clientId.toString();
+            const clientId = getClientId(conversation);
             const preview = conversation.lastMessage.content.slice(0, 60);
             const isActive = activeClientId === clientId;
             const badge =
@@ -128,11 +135,13 @@ function renderChatMessages(conversation) {
 
     chatHistory.innerHTML = conversation.messages
         .map((msg) => {
+            const text = msg.content || msg.message || '';
             const isOutgoing = msg.senderRole === 'therapist';
+            const timestamp = msg.createdAt || msg.sent_at;
             return `
                 <div class="bubble ${isOutgoing ? 'outgoing' : 'incoming'}">
-                    <p>${escapeHtml(msg.content)}</p>
-                    <span class="time">${formatTime(msg.createdAt)}</span>
+                    <p>${escapeHtml(text)}</p>
+                    <span class="time">${formatTime(timestamp)}</span>
                 </div>
             `;
         })
