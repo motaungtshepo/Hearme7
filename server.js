@@ -12,10 +12,46 @@ const app = express();
 app.use(cors());
 app.use(express.json()); // Parses incoming JSON data from the frontend
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB successfully!'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+const LEGACY_USER_INDEXES = ['email_1', 'anonymousName_1', 'licenseNumber_1'];
+
+async function prepareDatabase() {
+    const usersCollection = mongoose.connection.db.collection('users');
+
+    for (const indexName of LEGACY_USER_INDEXES) {
+        try {
+            await usersCollection.dropIndex(indexName);
+            console.log(`Dropped legacy index: ${indexName}`);
+        } catch (err) {
+            if (err.code !== 27 && err.codeName !== 'IndexNotFound') {
+                throw err;
+            }
+        }
+    }
+
+    try {
+        await User.syncIndexes();
+    } catch (err) {
+        console.warn('Could not sync user indexes. Run npm run fix-db if signup fails:', err.message);
+    }
+}
+
+function sendDbError(res, error, context) {
+    console.error(`${context}:`, error);
+
+    if (error.code === 11000) {
+        return res.status(400).json({ message: 'This identifier is already taken.' });
+    }
+
+    if (error.name === 'ValidationError') {
+        return res.status(400).json({ message: error.message });
+    }
+
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({ message: 'Database is not connected. Try again shortly.' });
+    }
+
+    return res.status(500).json({ message: `Server error during ${context}.` });
+}
 
 
 //  SIGNUP ROUTE
@@ -24,31 +60,31 @@ app.post('/api/auth/signup', async (req, res) => {
     try {
         const { role, isAnonymous, identifier, password } = req.body;
 
-        // Check if user already exists
+        if (!role || !identifier || !password) {
+            return res.status(400).json({ message: 'Role, identifier, and password are required.' });
+        }
+
         const existingUser = await User.findOne({ identifier });
         if (existingUser) {
             return res.status(400).json({ message: 'This identifier is already taken.' });
         }
 
-        // Hash the password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Create new user in the database
         const newUser = new User({
             role,
-            isAnonymous,
-            identifier,
+            isAnonymous: Boolean(isAnonymous),
+            identifier: String(identifier).trim(),
             password: hashedPassword
         });
 
-        await newUser.save(); // saving to MongoDB
+        await newUser.save();
 
         res.status(201).json({ message: 'Account created successfully!' });
 
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error during signup.' });
+        return sendDbError(res, error, 'signup');
     }
 });
 
@@ -58,8 +94,9 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const { role, identifier, password } = req.body;
 
-        // Find user by identifier
-        const user = await User.findOne({ identifier });
+        const user = await User.findOne({
+            $or: [{ identifier }, { email: identifier }]
+        });
         if (!user) {
             return res.status(400).json({ message: 'Invalid credentials.' });
         }
@@ -89,16 +126,38 @@ app.post('/api/auth/login', async (req, res) => {
         });
 
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error during login.' });
+        return sendDbError(res, error, 'login');
     }
 });
 
-// Start the server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+
+async function startServer() {
+    if (!process.env.MONGODB_URI) {
+        console.error('MONGODB_URI is missing from .env');
+        process.exit(1);
+    }
+
+    if (!process.env.JWT_SECRET) {
+        console.error('JWT_SECRET is missing from .env');
+        process.exit(1);
+    }
+
+    try {
+        await mongoose.connect(process.env.MONGODB_URI);
+        console.log('Connected to MongoDB successfully!');
+        await prepareDatabase();
+
+        app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`);
+        });
+    } catch (err) {
+        console.error('Failed to start server:', err);
+        process.exit(1);
+    }
+}
+
+startServer();
 
 
 // Middleware to verify if a user is logged in
