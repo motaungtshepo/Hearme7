@@ -260,7 +260,7 @@ async function sendTherapistReply() {
     if (sendBtn) sendBtn.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE}/messages/reply`, {
+        const response = await fetch(`${API_BASE}/messages`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -268,6 +268,13 @@ async function sendTherapistReply() {
             },
             body: JSON.stringify({ clientId: activeClientId, content })
         });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            throw new Error(
+                'Server returned an invalid response. Restart npm start, then try again.'
+            );
+        }
 
         const data = await response.json();
         if (!response.ok) {

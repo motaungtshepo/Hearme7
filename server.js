@@ -245,17 +245,52 @@ app.get('/api/therapists', async (req, res) => {
 });
 
 
-//  SEND MESSAGE TO THERAPIST (User -> Therapist)
+async function saveTherapistReply(therapist, clientId, content) {
+    const client = await User.findOne({ _id: clientId, role: 'user' });
+    if (!client) {
+        return { status: 404, body: { message: 'Client not found.' } };
+    }
+
+    const message = new Message({
+        therapistId: therapist._id,
+        clientId: client._id,
+        senderId: therapist._id,
+        senderRole: 'therapist',
+        senderIdentifier: therapist.identifier,
+        content: content.trim(),
+        read: true
+    });
+
+    await message.save();
+
+    return {
+        status: 201,
+        body: { message: 'Reply sent successfully.', data: message }
+    };
+}
+
+
+//  SEND MESSAGE (User -> Therapist) OR THERAPIST REPLY (Therapist -> User)
 // ==========================================
 app.post('/api/messages', verifyToken, async (req, res) => {
     try {
-        if (req.user.role !== 'user') {
-            return res.status(403).json({ message: 'Only users can send messages to therapists.' });
+        const { therapistId, clientId, content } = req.body;
+        if (!content?.trim()) {
+            return res.status(400).json({ message: 'Message content is required.' });
         }
 
-        const { therapistId, content } = req.body;
-        if (!therapistId || !content?.trim()) {
-            return res.status(400).json({ message: 'Therapist and message content are required.' });
+        if (req.user.role === 'therapist') {
+            const therapist = await User.findById(req.user.userId);
+            const result = await saveTherapistReply(therapist, clientId, content);
+            return res.status(result.status).json(result.body);
+        }
+
+        if (req.user.role !== 'user') {
+            return res.status(403).json({ message: 'Invalid role for sending messages.' });
+        }
+
+        if (!therapistId) {
+            return res.status(400).json({ message: 'Therapist is required.' });
         }
 
         const therapist = await User.findOne({ _id: therapistId, role: 'therapist' });
@@ -303,8 +338,7 @@ function isUserMessage(msg) {
 }
 
 
-//  THERAPIST REPLY TO CLIENT
-// ==========================================
+// Alias route for therapist replies (same handler as POST /api/messages)
 app.post('/api/messages/reply', verifyToken, async (req, res) => {
     try {
         if (req.user.role !== 'therapist') {
@@ -317,27 +351,8 @@ app.post('/api/messages/reply', verifyToken, async (req, res) => {
         }
 
         const therapist = await User.findById(req.user.userId);
-        const client = await User.findOne({ _id: clientId, role: 'user' });
-        if (!client) {
-            return res.status(404).json({ message: 'Client not found.' });
-        }
-
-        const message = new Message({
-            therapistId: therapist._id,
-            clientId: client._id,
-            senderId: therapist._id,
-            senderRole: 'therapist',
-            senderIdentifier: therapist.identifier,
-            content: content.trim(),
-            read: true
-        });
-
-        await message.save();
-
-        res.status(201).json({
-            message: 'Reply sent successfully.',
-            data: message
-        });
+        const result = await saveTherapistReply(therapist, clientId, content);
+        res.status(result.status).json(result.body);
     } catch (error) {
         return sendDbError(res, error, 'send reply');
     }
@@ -504,7 +519,7 @@ async function startServer() {
 
         app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
-            console.log('API ready: /api/therapists, /api/messages, /api/posts');
+            console.log('API ready: /api/therapists, /api/messages (incl. replies), /api/messages/inbox');
         });
     } catch (err) {
         console.error('Failed to start server:', err);
