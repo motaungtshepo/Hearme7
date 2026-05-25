@@ -1,55 +1,61 @@
 // login.js
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. UI LOGIC (Role Selection)
     const roleOptions = document.querySelectorAll('.role-option');
-    const anonToggleContainer = document.querySelector('.anon-toggle'); // Matches login.html
+    const anonToggleContainer = document.querySelector('.anon-toggle');
     const anonCheckbox = document.getElementById('anonymous');
-    const identifierInput = document.getElementById('identifier');
+    const identifierInput = document.getElementById('email');
+
+    function updateLoginFields(selectedRole) {
+        const isStaff = selectedRole === 'admin' || selectedRole === 'therapist';
+
+        if (anonToggleContainer) {
+            anonToggleContainer.style.display = isStaff ? 'none' : 'flex';
+        }
+        if (isStaff && anonCheckbox) {
+            anonCheckbox.checked = false;
+        }
+
+        if (identifierInput) {
+            const isAnonymous = !isStaff && (anonCheckbox?.checked ?? false);
+            identifierInput.type = isAnonymous ? 'text' : 'email';
+            identifierInput.placeholder = isAnonymous
+                ? 'Enter your username'
+                : 'Enter your email';
+        }
+    }
 
     roleOptions.forEach(option => {
         option.addEventListener('click', () => {
-            // Update Active state
             roleOptions.forEach(opt => opt.classList.remove('active'));
             option.classList.add('active');
-            
-            const selectedRole = option.dataset.role;
-
-            // Hide anon toggle for Admin and Therapist
-            if (anonToggleContainer) {
-                if (selectedRole === 'admin' || selectedRole === 'therapist') {
-                    anonToggleContainer.style.display = 'none';
-                    if (anonCheckbox) anonCheckbox.checked = false; 
-                    identifierInput.placeholder = "Enter email or username";
-                } else {
-                    anonToggleContainer.style.display = 'flex';
-                    if (anonCheckbox) anonCheckbox.checked = true;
-                    identifierInput.placeholder = "user#12345";
-                }
-            }
+            updateLoginFields(option.dataset.role);
         });
     });
 
     if (anonCheckbox) {
         anonCheckbox.addEventListener('change', () => {
-            if (anonCheckbox.checked) {
-                identifierInput.placeholder = "user#12345";
-            } else {
-                identifierInput.placeholder = "Enter your email";
-            }
+            const selectedRole = document.querySelector('.role-option.active')?.dataset.role || 'user';
+            updateLoginFields(selectedRole);
         });
     }
 
-    // 2. LOGIN DATABASE LOGIC
+    updateLoginFields(document.querySelector('.role-option.active')?.dataset.role || 'user');
+
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault(); // Stop page refresh
+            e.preventDefault();
 
             const roleElement = document.querySelector('.role-option.active');
             const role = roleElement ? roleElement.getAttribute('data-role') : 'user';
-            const identifier = identifierInput.value;
-            const password = document.getElementById('password').value;
+            const identifier = identifierInput?.value?.trim() || '';
+            const password = document.getElementById('password')?.value || '';
+
+            if (!identifier || !password) {
+                alert('Please fill in all required fields.');
+                return;
+            }
 
             try {
                 const response = await fetch('http://localhost:5000/api/auth/login', {
@@ -62,14 +68,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (response.ok) {
                     alert('Login successful! Welcome back to HearMe.');
-                    
-                    // Save secure token to browser
+
                     localStorage.setItem('token', data.token);
                     localStorage.setItem('userRole', data.user.role);
                     localStorage.setItem('userIdentifier', data.user.identifier);
 
-                    // Redirect to the main dashboard
-                    window.location.href = '../user-profiles/community-feeds.html'; 
+                    window.location.href = '../user-profiles/community-feeds.html';
                 } else {
                     alert(`Login failed: ${data.message}`);
                 }

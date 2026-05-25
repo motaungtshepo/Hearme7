@@ -1,57 +1,80 @@
 // signup.js
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. UI LOGIC (Role Selection & Toggles)
     const roleOptions = document.querySelectorAll('.role-option');
-    const anonToggleContainer = document.getElementById('anon-section'); // Matches signup.html
+    const anonToggleContainer = document.getElementById('anon-section');
     const anonCheckbox = document.getElementById('anonymous');
-    const identifierInput = document.getElementById('identifier');
+    const usernameInput = document.getElementById('username');
+    const emailInput = document.getElementById('email');
+    const usernameField = usernameInput?.closest('.input-field');
+    const emailField = emailInput?.closest('.input-field');
+
+    function updateSignupFields(selectedRole) {
+        const isStaff = selectedRole === 'admin' || selectedRole === 'therapist';
+        const isAnonymous = anonCheckbox?.checked ?? false;
+
+        if (anonToggleContainer) {
+            anonToggleContainer.style.display = isStaff ? 'none' : 'block';
+        }
+        if (isStaff && anonCheckbox) {
+            anonCheckbox.checked = false;
+        }
+
+        if (usernameField) {
+            usernameField.style.display = !isStaff && isAnonymous ? 'block' : 'none';
+        }
+        if (emailField) {
+            emailField.style.display = isStaff || !isAnonymous ? 'block' : 'none';
+        }
+
+        if (usernameInput) {
+            usernameInput.required = !isStaff && isAnonymous;
+        }
+        if (emailInput) {
+            emailInput.required = isStaff || !isAnonymous;
+        }
+    }
 
     roleOptions.forEach(option => {
         option.addEventListener('click', () => {
-            // Update Active state
             roleOptions.forEach(opt => opt.classList.remove('active'));
             option.classList.add('active');
-            
-            const selectedRole = option.dataset.role;
-
-            // Hide anon toggle for Admin and Therapist
-            if (anonToggleContainer) {
-                if (selectedRole === 'admin' || selectedRole === 'therapist') {
-                    anonToggleContainer.style.display = 'none';
-                    if (anonCheckbox) anonCheckbox.checked = false; 
-                    identifierInput.placeholder = "Enter email or username";
-                    identifierInput.type = "text";
-                } else {
-                    anonToggleContainer.style.display = 'block';
-                    if (anonCheckbox) anonCheckbox.checked = true;
-                    identifierInput.placeholder = "Auto-generated ID";
-                }
-            }
+            updateSignupFields(option.dataset.role);
         });
     });
 
     if (anonCheckbox) {
         anonCheckbox.addEventListener('change', () => {
-            if (anonCheckbox.checked) {
-                identifierInput.placeholder = "Auto-generated ID";
-            } else {
-                identifierInput.placeholder = "Enter your email";
-            }
+            const selectedRole = document.querySelector('.role-option.active')?.dataset.role || 'user';
+            updateSignupFields(selectedRole);
         });
     }
 
-    // 2. SIGN UP DATABASE LOGIC
+    updateSignupFields(document.querySelector('.role-option.active')?.dataset.role || 'user');
+
     const signupForm = document.getElementById('signup-form');
     if (signupForm) {
         signupForm.addEventListener('submit', async (e) => {
-            e.preventDefault(); // Stop page refresh
+            e.preventDefault();
 
             const roleElement = document.querySelector('.role-option.active');
             const role = roleElement ? roleElement.getAttribute('data-role') : 'user';
-            const isAnonymous = anonCheckbox ? anonCheckbox.checked : false;
-            const identifier = identifierInput.value;
-            const password = document.getElementById('password').value;
+            const isStaff = role === 'admin' || role === 'therapist';
+            const isAnonymous = !isStaff && (anonCheckbox?.checked ?? false);
+
+            let identifier = '';
+            if (isStaff || !isAnonymous) {
+                identifier = emailInput?.value?.trim() || '';
+            } else {
+                identifier = usernameInput?.value?.trim() || '';
+            }
+
+            const password = document.getElementById('password')?.value || '';
+
+            if (!identifier || !password) {
+                alert('Please fill in all required fields.');
+                return;
+            }
 
             try {
                 const response = await fetch('http://localhost:5000/api/auth/signup', {
