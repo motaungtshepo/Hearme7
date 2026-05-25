@@ -77,6 +77,14 @@ async function loadTherapists() {
 
     try {
         const response = await fetch(`${API_BASE}/therapists`);
+        const contentType = response.headers.get('content-type') || '';
+
+        if (!contentType.includes('application/json')) {
+            throw new Error(
+                'Server returned an invalid response. Stop npm start (Ctrl+C), run npm start again, then refresh this page.'
+            );
+        }
+
         const therapists = await response.json();
 
         if (!response.ok) {

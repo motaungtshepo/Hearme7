@@ -193,35 +193,6 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 5000;
-
-async function startServer() {
-    if (!process.env.MONGODB_URI) {
-        console.error('MONGODB_URI is missing from .env');
-        process.exit(1);
-    }
-
-    if (!process.env.JWT_SECRET) {
-        console.error('JWT_SECRET is missing from .env');
-        process.exit(1);
-    }
-
-    try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log('Connected to MongoDB successfully!');
-        await prepareDatabase();
-
-        app.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
-        });
-    } catch (err) {
-        console.error('Failed to start server:', err);
-        process.exit(1);
-    }
-}
-
-startServer();
-
 
 // Middleware to verify if a user is logged in
 const verifyToken = (req, res, next) => {
@@ -411,3 +382,34 @@ app.post('/api/posts', verifyToken, async (req, res) => {
         res.status(500).json({ message: 'Server error while creating post.' });
     }
 });
+
+
+const PORT = process.env.PORT || 5000;
+
+async function startServer() {
+    if (!process.env.MONGODB_URI) {
+        console.error('MONGODB_URI is missing from .env');
+        process.exit(1);
+    }
+
+    if (!process.env.JWT_SECRET) {
+        console.error('JWT_SECRET is missing from .env');
+        process.exit(1);
+    }
+
+    try {
+        await mongoose.connect(process.env.MONGODB_URI);
+        console.log('Connected to MongoDB successfully!');
+        await prepareDatabase();
+
+        app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`);
+            console.log('API ready: /api/therapists, /api/messages, /api/posts');
+        });
+    } catch (err) {
+        console.error('Failed to start server:', err);
+        process.exit(1);
+    }
+}
+
+startServer();
